@@ -7,23 +7,23 @@ import os
 import sys
 import time
 import sqlite3
+import summarize
 
 class Goodlinks():
 
-    def __init__(self, verbose=None, debug=False, db_file=""):
-        if db_file != "":
-            self.db_file = db_file
-        else:
-            self.db_file = os.environ["HOME"]+"""/Library/Group Containers/group.com.ngocluu.goodlinks/Data/data.sqlite"""
-        
-        if debug == True:
-            print(f"DB filename : {self.db_file}")
-
-        self.connect_to_db()
-
+    def __init__(self, verbose=None, db_file=""):
         self.verbose = 0
         if verbose == 1:
             self.verbose = 1
+
+        self.db_file = db_file
+        if db_file == "":
+            self.db_file = os.environ["HOME"]+"""/Library/Group Containers/group.com.ngocluu.goodlinks/Data/data.sqlite"""
+        
+        if self.verbose == 1:
+            print(f"DB : {self.db_file}")
+
+        self.connect_to_db()
             
     def connect_to_db(self):
         try:
@@ -39,16 +39,12 @@ class Goodlinks():
         #self.db.commit()
     
     def get_tables(self):
-        result = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = self.cursor.fetchall()
-
-        return tables
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        return self.cursor.fetchall()
 
     def print_tables(self):
-        tables = self.get_tables()
-
-        print("== Tables in the DB ==")
-        for index, item in enumerate(tables):
+        print("== Table in this database")
+        for index, item in enumerate(self.get_tables()):
             print(f"{index:4} {item[0]}")
     
     def get_fields(self, table):
@@ -59,32 +55,37 @@ class Goodlinks():
         return list(zip(*result))[1]
     
     def print_fields(self, table):
-        result = self.get_fields(table)
-
         print(f"== Fields of table {table} ==")
-        for index, item in enumerate(result):
+        for index, item in enumerate(self.get_fields(table)):
             print(f"{index:4} {item}")
 
-    def get_records(self, table, order_by=""):
-        if order_by != "":
-            self.cursor.execute(f"SELECT * FROM {table} ORDER BY addedAt DESC")
+    def _get_date_filter(self, date=None):
+        if date != None:
+            ts_per_day = 24*60*60 
+            target_ts = datetime.datetime.strptime(date, "%Y-%m-%d").timestamp()
+            return f"WHERE addedAt >= {target_ts} and addedAt < {target_ts + ts_per_day}"
         else:
-            self.cursor.execute(f"SELECT * FROM {table}")
+            return ""
+
+    def get_records(self, table, date=""):
+        date_filter = self._get_date_filter(date)
+
+        buf = f"SELECT * FROM {table} {date_filter} ORDER BY addedAt DESC"
+        self.cursor.execute(buf)
 
         return self.cursor.fetchall()
 
     def _print_record(self, data):
         if self.verbose == 1:
-            for key in ['addedAt', 'url', 'title', 'tags']:
-                if data[key] is None:
-                    return
-                if key in ['addedAt', 'modifiedAt'] :
-                    print(f"{key:<12} : {time.ctime(data[key])} {data[key]}")
-                else:  
-                    try:
-                        print(f"{key:<12} : {data[key]:<20}")
-                    except TypeError:
-                        print(f"Error {key}")
+            print("-"*120)
+            print(f"{data['title']:<20}")
+            print(f"{'':<2} : {data['url']:<20}")
+#            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
+            if data['tags'] != None:
+                print(f"{'':<2} : ", end="")
+                for tag in data['tags'].split():
+                    print(f"#{tag}", end=" ")
+                print()
         else:
             print(f"""- [{data['title']}]({data['url']})""", end=" ")
             tags = data.get('tags') or ""
@@ -92,25 +93,21 @@ class Goodlinks():
                 print(f"#{tag}", end=" ")
             print()
 
-    def print_records(self, table, tag=None, date=None, limit=10):
+    def print_records(self, table, req_tag=None, req_date=None, limit=10):
         fields = self.get_fields(table)
-        values = self.get_records(table)
+        values = self.get_records(table, req_date)
 
-
+        if self.verbose != 1:
+            print("## Goodlinks\n")
         count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(fields, value))
 
-            if tag != None:
+            if req_tag != None:
                 if data['tags'] == None:
                     continue
-                elif tag not in data['tags']:
+                elif req_tag not in data['tags']:
                     continue
-
-            if date != None:
-                if date != datetime.datetime.fromtimestamp(data['addedAt']).strftime("%Y-%m-%d"):
-                    continue
-
             count += 1
             self._print_record(data)
 
@@ -120,20 +117,51 @@ class Goodlinks():
         return count
     
 
-    def _update_tag(self, id, title, old_tags):
+    def _update_tag(self, data):
+        """ return 1 if tag is udpated otherwise return 0"""
+
+        url = data['url']
+        title = data['title']
+        old_tags = data.get('tags', "") # to avoid error in "x not in old_tags"
+
+        my_tag = (
+            'kubernetes', 'rust', 'cargo', 'go', 'ebpf',
+            'python', 'fastapi', 'generator', 'iterator', 'jupyter', 'numpy', 'pandas', 'seaborn',
+            'obsidian', 'note-taking', 'journaling',
+            'helm', 'container', 'observability',
+            'aws'
+        )
 
         if False:
             ## temporal code to replace " twitter youtube" to "youtube"
-            try:
-                if " twitter youtube" in old_tags:
-                    new_tags = old_tags.replace(" twitter youtube", "youtube")
-                    print(f"{id} tags is updated from ({old_tags}) to ({new_tags})")
+            tag_map = {"youtubekubernetes": "youtube kubernetes",
+                        "youtubeobservability": "youtube observability",
+                        "youtubeobsidian": "youtube obsidian",
+                        "youtubepython": "youtube python"}
+
+            for x in tag_map.keys():
+                if old_tags == None:
+                    return None
+
+                if x in old_tags:
+                    new_tags = old_tags.replace(x, tag_map[x])
                     self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                     self.db.commit()
                     return new_tags
-            except:
-                return old_tags
 
+            return old_tags
+
+
+        extracted_keyword, a_title = summarize.get_keyword_and_title(url)
+        if extracted_keyword != []:
+            b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
+            if b != []:
+                new_tags = old_tags + ' ' + ' '.join(b)
+                self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
+                self.db.commit()
+                print(f"  U : {old_tags} -> {new_tags}")
+
+        # simple tag for twitter and youtube
         target_tags = ( 
                 ["on Twitter", "twitter"], 
                 ["- YouTube", "youtube"]
@@ -152,105 +180,31 @@ class Goodlinks():
                     self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                     self.db.commit()
 
-                return new_tags
+                return 1 if new_tags == old_tags else 0
 
-        return new_tags
+        return 1 if new_tags == old_tags else 0
     
-    def update_tag(self, table):
+    def update_tag(self, table, req_date=None):
         """Update tag of records"""
         fields = self.get_fields(table)
-        values = self.get_records(table)
+        values = self.get_records(table, req_date)
 
         count = 0
+        if args.verbose:
+            print(f"Process {len(values)} items")
         for index, item in enumerate(values, start=1):
             data = dict(zip(fields, item))
-
-            tags = data['tags']
-            title = data['title']
-            id = data['id']
-
-            if title != None:
-                new_tags = self._update_tag(id, title, tags)
-
-                if tags != new_tags:
-                    count += 1
+            count += self._update_tag(data)
         
-        print(f"{count} is updated")
-
-    def get_db(self):
-        return self.db
-    
-    def get_cursor(self):
-        return self.cursor
+        print(f"Updated record : {count}")
 
 
-def main(args):
-
-    with sqlite3.connect(args.db) as connection:
-        cursor = connection.cursor()
-
-        cursor.lastrowid
-        connection.commit()
-
-        # Get Table list
-        result = cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-    #    print(tables)
-    #    print(list(zip(tables)))
-    #    print(list(zip(*tables))[0])
-
-        # Get fields of table 'link'
-        result = cursor.execute("PRAGMA table_info('link')").fetchall()
-        column_names = list(zip(*result))[1]
-    #    print(list(zip(*result)))
-    #    print(list(zip(result)))
-
-        print("\ncolumn names for links:")
-        print(column_names)
-
-        # Get all records from table 'link'
-        cursor.execute("SELECT * FROM link ORDER BY addedAt DESC")
-        ret =  cursor.fetchall()
-
-        print(f"Total {len(ret)} links")
-        for index, item in enumerate(ret, start=1):
-            data = dict(zip(column_names, item))
-
-            tags = data['tags']
-            title = data['title']
-            id = data['id']
-
-            if title != None:
-                tags = update_tag(cursor, id, title, tags)
-
-    #        for field, value in zip(column_names, item):
-
-            continue
-            for field, value in zip(column_names, item):
-                if value == None:
-                    continue
-    #            if field in ['preview', 'fetchStatus', 'id', 'summary', 'modifiedAt', 'starred']:
-    #                continue
-                if field not in ['url', 'title', 'addedAt', 'tags']:
-                #if field not in ['addedAt']:
-                    continue
-                if field in ['addedAt', 'modifiedAt'] :
-                    print(f"{field:<12} : {time.ctime(value)}")
-                else:  
-                    print(f"{field:<12} : {value:<20}")
-            if index > 3:
-                break
-
-        #for row in cursor:
-        #    print "%16s   %7s %16s %16s %10u %10u" %(row[0], "active" if row[1] == 1 else "disable", row[2], row[3], row[4], row[5])
-
-
-        # output to json
-        # http://stackoverflow.com/questions/3286525/return-sql-table-as-json-in-python
-        #cursor.execute('SELECT * FROM vm_list WHERE state == 1')
-        #r = [dict((cursor.description[i][0], value) for i, value in enumerate(row)) for row in cursor.fetchall()]
-        #json_output = json.dumps(r)
-        #print json_output
+    # output to json
+    # http://stackoverflow.com/questions/3286525/return-sql-table-as-json-in-python
+    #cursor.execute('SELECT * FROM vm_list WHERE state == 1')
+    #r = [dict((cursor.description[i][0], value) for i, value in enumerate(row)) for row in cursor.fetchall()]
+    #json_output = json.dumps(r)
+    #print json_output
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser() #epilog=example_text)
@@ -262,6 +216,7 @@ if __name__ == "__main__":
     parser.add_argument("--tables", action="store_const", const=1, help="print tables")
     parser.add_argument("--fields", action="store_const", const=1, help="print fields of tables")
     parser.add_argument("--update", action="store_const", const=1, help="update tag")
+    parser.add_argument("--obsidian", action="store_const", const=1, help="Update obsidian Daily Notes tag")
     args = parser.parse_args()
 
     goodlinks = Goodlinks(args.verbose)
@@ -273,13 +228,14 @@ if __name__ == "__main__":
         goodlinks.print_fields('link')
         goodlinks.print_fields('state')
 
+    if args.today == 1:
+        args.date = datetime.datetime.now().strftime("%Y-%m-%d")
+
     if args.update:
-        goodlinks.update_tag('link')
+        goodlinks.update_tag('link', args.date)
     else:
-        if args.today == 1 or args.date != None:
-            if args.today == 1:
-                args.date = datetime.datetime.now().strftime("%Y-%m-%d")
-            count = goodlinks.print_records('link', args.tag, args.date, -1)
-            print(f"{count} on {args.date}")
-        else:
-            print("TBD WHAT TO DO?? DAILY LINK COUNT?")
+        count = goodlinks.print_records('link', args.tag, args.date, -1)
+        print(f"{count} on {args.date}")
+    
+    if args.obsidian:
+        print("Obisidian option is enabled")

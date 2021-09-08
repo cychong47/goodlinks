@@ -2,10 +2,8 @@
 
 import argparse
 import datetime
-import json
 import os
 import sys
-import time
 import sqlite3
 import summarize
 
@@ -76,13 +74,14 @@ class Goodlinks():
         return self.cursor.fetchall()
 
     def _print_record(self, data):
+        buf = ""
         if self.verbose == 1:
             print("-"*120)
             print(f"{data['title']:<20}")
             print(f"{'':<2} : {data['url']:<20}")
 #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
             if data['tags'] != None:
-                print(f"{'':<2} : ", end="")
+                print(f"{'':<2} : ")
                 for tag in data['tags'].split():
                     print(f"#{tag}", end=" ")
                 print()
@@ -97,8 +96,9 @@ class Goodlinks():
         fields = self.get_fields(table)
         values = self.get_records(table, req_date)
 
-        if self.verbose != 1:
+        if self.obsidian == 1:
             print("## Goodlinks\n")
+
         count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(fields, value))
@@ -116,13 +116,23 @@ class Goodlinks():
 
         return count
     
+    def get_links(self, table, req_date=None):
+        """Return links of the given date"""
+        fields = self.get_fields(table)
+        values = self.get_records(table, req_date)
+
+        data = []
+        for index, value in enumerate(values, start=1):
+            data.append(dict(zip(fields, value)))
+
+        return data
 
     def _update_tag(self, data):
         """ return 1 if tag is udpated otherwise return 0"""
 
         url = data['url']
         title = data['title']
-        old_tags = data.get('tags', "") # to avoid error in "x not in old_tags"
+        old_tags = data.get('tags', "") or "" # to avoid error in "x not in old_tags"
 
         my_tag = (
             'kubernetes', 'rust', 'cargo', 'go', 'ebpf',
@@ -152,14 +162,13 @@ class Goodlinks():
             return old_tags
 
 
-        extracted_keyword, a_title = summarize.get_keyword_and_title(url)
+        extracted_keyword, _ = summarize.get_keyword_and_title(url)
         if extracted_keyword != []:
             b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
             if b != []:
                 new_tags = old_tags + ' ' + ' '.join(b)
                 self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                 self.db.commit()
-                print(f"  U : {old_tags} -> {new_tags}")
 
         # simple tag for twitter and youtube
         target_tags = ( 
@@ -190,7 +199,7 @@ class Goodlinks():
         values = self.get_records(table, req_date)
 
         count = 0
-        if args.verbose:
+        if self.verbose:
             print(f"Process {len(values)} items")
         for index, item in enumerate(values, start=1):
             data = dict(zip(fields, item))

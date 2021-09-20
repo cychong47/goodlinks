@@ -5,7 +5,8 @@ import datetime
 import os
 import sys
 import sqlite3
-import summarize
+import pathlib
+import tagging
 
 class Goodlinks():
 
@@ -21,6 +22,7 @@ class Goodlinks():
         if self.verbose == 1:
             print(f"DB : {self.db_file}")
 
+        self.table_name = "link"
         self.connect_to_db()
             
     def connect_to_db(self):
@@ -96,9 +98,6 @@ class Goodlinks():
         fields = self.get_fields(table)
         values = self.get_records(table, req_date)
 
-        if self.obsidian == 1:
-            print("## Goodlinks\n")
-
         count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(fields, value))
@@ -130,6 +129,7 @@ class Goodlinks():
     def _update_tag(self, data):
         """ return 1 if tag is udpated otherwise return 0"""
 
+        id = data['id']
         url = data['url']
         title = data['title']
         old_tags = data.get('tags', "") or "" # to avoid error in "x not in old_tags"
@@ -162,8 +162,11 @@ class Goodlinks():
             return old_tags
 
 
-        extracted_keyword, _ = summarize.get_keyword_and_title(url)
+        extracted_keyword, a_title = tagging.get_keyword_and_title(url)
         if extracted_keyword != []:
+            if self.verbose:
+                print(extracted_keyword)
+
             b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
             if b != []:
                 new_tags = old_tags + ' ' + ' '.join(b)
@@ -178,6 +181,8 @@ class Goodlinks():
 
         new_tags = old_tags
         for keyword, tag in target_tags:
+            if title == None:
+                title = a_title 
             if keyword in title:
                 if old_tags is None:
                     new_tags = tag
@@ -185,13 +190,13 @@ class Goodlinks():
                     new_tags = f"{old_tags} {tag}"
 
                 if new_tags != old_tags:
-                    print(f"{id} tags is updated {old_tags} -> {new_tags}")
+                    print(f"Update tag : {old_tags} -> {new_tags}")
                     self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                     self.db.commit()
 
-                return 1 if new_tags == old_tags else 0
+                return 0 if new_tags == old_tags else 1
 
-        return 1 if new_tags == old_tags else 0
+        return 0 if new_tags == old_tags else 1
     
     def update_tag(self, table, req_date=None):
         """Update tag of records"""
@@ -200,13 +205,50 @@ class Goodlinks():
 
         count = 0
         if self.verbose:
-            print(f"Process {len(values)} items")
+            print(f"Process {len(values)} items on {req_date}")
         for index, item in enumerate(values, start=1):
             data = dict(zip(fields, item))
             count += self._update_tag(data)
         
-        print(f"Updated record : {count}")
+        if count:
+            print(f"Updated record : {count}")
 
+    def append_to_obsidian(self, update, req_date):
+        dn_file = f"""{os.environ["HOME"]}/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/01. Daily Notes/{args.date}.md"""
+        if pathlib.Path(dn_file).is_file():
+            # check if already Goodlinks sections are present
+            with open(dn_file, 'r') as fp:
+                for line in fp.readlines():
+                    if "## Goodlinks" in line:
+                        print("Daily notes has already Goodlinks section.")
+                        return
+
+        # need to update tag first if not 
+        if not update:
+            self.update_tag(self.table_name, args.date)
+
+        links = self.get_links(self.table_name, req_date)
+        if pathlib.Path(dn_file).is_file():
+            first_line = ''
+            with open(dn_file, 'r') as fp:
+                buf = fp.readlines()
+
+                if buf[-1] != '\n':
+                    first_line = "\n\n"
+
+            with open(dn_file, 'a') as fp:
+                fp.write(first_line)
+                fp.write("## Goodlinks\n")
+
+                for link in links:
+                    fp.write(f"""- [{link['title']}]({link['url']}) """)
+                    tags = link.get('tags') or ""
+                    for tag in tags.split():
+                        fp.write(f"#{tag}")
+                    fp.write("\n")
+            print("Append to Daily Notes")
+        else:
+            print(f"File is not exist {dn_file}")
 
     # output to json
     # http://stackoverflow.com/questions/3286525/return-sql-table-as-json-in-python
@@ -216,14 +258,17 @@ class Goodlinks():
     #print json_output
 
 if __name__ == "__main__":
+    # update/list/obsidian
     parser = argparse.ArgumentParser() #epilog=example_text)
     parser.add_argument("-c", "--count", type=int, default=10)
-    parser.add_argument("--tag", "-t", action="store")
     parser.add_argument("--date", "-d", action="store")
     parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
     parser.add_argument("--verbose", action="store_const", const=1, help="print details of each item")
+
     parser.add_argument("--tables", action="store_const", const=1, help="print tables")
+    parser.add_argument("--tag", "-t", action="store")
     parser.add_argument("--fields", action="store_const", const=1, help="print fields of tables")
+
     parser.add_argument("--update", action="store_const", const=1, help="update tag")
     parser.add_argument("--obsidian", action="store_const", const=1, help="Update obsidian Daily Notes tag")
     args = parser.parse_args()
@@ -240,11 +285,11 @@ if __name__ == "__main__":
     if args.today == 1:
         args.date = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    if args.update:
+    if args.update == 1:
         goodlinks.update_tag('link', args.date)
+    
+    if args.obsidian == 1:
+        goodlinks.append_to_obsidian(args.update, args.date)
     else:
         count = goodlinks.print_records('link', args.tag, args.date, -1)
         print(f"{count} on {args.date}")
-    
-    if args.obsidian:
-        print("Obisidian option is enabled")

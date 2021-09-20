@@ -7,13 +7,12 @@ import sys
 import sqlite3
 import pathlib
 import tagging
+import obsidian
 
 class Goodlinks():
 
-    def __init__(self, verbose=None, db_file=""):
-        self.verbose = 0
-        if verbose == 1:
-            self.verbose = 1
+    def __init__(self, verbose=0, db_file=""):
+        self.verbose = verbose
 
         self.db_file = db_file
         if db_file == "":
@@ -23,6 +22,7 @@ class Goodlinks():
             print(f"DB : {self.db_file}")
 
         self.table_name = "link"
+
         self.connect_to_db()
             
     def connect_to_db(self):
@@ -55,6 +55,7 @@ class Goodlinks():
         return list(zip(*result))[1]
     
     def print_fields(self, table):
+        """Get table field names"""
         print(f"== Fields of table {table} ==")
         for index, item in enumerate(self.get_fields(table)):
             print(f"{index:4} {item}")
@@ -68,6 +69,7 @@ class Goodlinks():
             return ""
 
     def get_records(self, table, date=""):
+        """Get table data"""
         date_filter = self._get_date_filter(date)
 
         buf = f"SELECT * FROM {table} {date_filter} ORDER BY addedAt DESC"
@@ -103,9 +105,7 @@ class Goodlinks():
             data = dict(zip(fields, value))
 
             if req_tag != None:
-                if data['tags'] == None:
-                    continue
-                elif req_tag not in data['tags']:
+                if not data['tags'] or req_tag not in data['tags']:
                     continue
             count += 1
             self._print_record(data)
@@ -117,11 +117,12 @@ class Goodlinks():
     
     def get_links(self, table, req_date=None):
         """Return links of the given date"""
+
         fields = self.get_fields(table)
         values = self.get_records(table, req_date)
 
         data = []
-        for index, value in enumerate(values, start=1):
+        for _, value in enumerate(values, start=1):
             data.append(dict(zip(fields, value)))
 
         return data
@@ -150,7 +151,7 @@ class Goodlinks():
                         "youtubepython": "youtube python"}
 
             for x in tag_map.keys():
-                if old_tags == None:
+                if not old_tags:
                     return None
 
                 if x in old_tags:
@@ -160,7 +161,6 @@ class Goodlinks():
                     return new_tags
 
             return old_tags
-
 
         extracted_keyword, a_title = tagging.get_keyword_and_title(url)
         if extracted_keyword != []:
@@ -181,10 +181,9 @@ class Goodlinks():
 
         new_tags = old_tags
         for keyword, tag in target_tags:
-            if title == None:
-                title = a_title 
+            title = a_title if not title else title
             if keyword in title:
-                if old_tags is None:
+                if not old_tags:
                     new_tags = tag
                 elif tag not in old_tags:
                     new_tags = f"{old_tags} {tag}"
@@ -198,8 +197,10 @@ class Goodlinks():
 
         return 0 if new_tags == old_tags else 1
     
-    def update_tag(self, table, req_date=None):
+    def update_tag(self, table="", req_date=None):
         """Update tag of records"""
+        if not table:
+            table = self.table
         fields = self.get_fields(table)
         values = self.get_records(table, req_date)
 
@@ -214,41 +215,21 @@ class Goodlinks():
             print(f"Updated record : {count}")
 
     def append_to_obsidian(self, update, req_date):
-        dn_file = f"""{os.environ["HOME"]}/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/01. Daily Notes/{args.date}.md"""
-        if pathlib.Path(dn_file).is_file():
-            # check if already Goodlinks sections are present
-            with open(dn_file, 'r') as fp:
-                for line in fp.readlines():
-                    if "## Goodlinks" in line:
-                        print("Daily notes has already Goodlinks section.")
-                        return
-
-        # need to update tag first if not 
+        """append to Obsidian Today Notes"""
         if not update:
-            self.update_tag(self.table_name, args.date)
+            self.update_tag(self.table_name, req_date)
 
-        links = self.get_links(self.table_name, req_date)
-        if pathlib.Path(dn_file).is_file():
-            first_line = ''
-            with open(dn_file, 'r') as fp:
-                buf = fp.readlines()
+        ob_note = obsidian.Obsidian(req_date)
+        if not ob_note.check_if_dn_is_exist():
+            print(f"Obisidian Daily Note on {req_date} is not exist")
 
-                if buf[-1] != '\n':
-                    first_line = "\n\n"
+        if not ob_note.check_if_note_has_goodlinks():
+            links = self.get_links(self.table_name)
+            if links:
+                ob_note.append_to_note(links)
+            else:
+                print(f"No links to append")
 
-            with open(dn_file, 'a') as fp:
-                fp.write(first_line)
-                fp.write("## Goodlinks\n")
-
-                for link in links:
-                    fp.write(f"""- [{link['title']}]({link['url']}) """)
-                    tags = link.get('tags') or ""
-                    for tag in tags.split():
-                        fp.write(f"#{tag}")
-                    fp.write("\n")
-            print("Append to Daily Notes")
-        else:
-            print(f"File is not exist {dn_file}")
 
     # output to json
     # http://stackoverflow.com/questions/3286525/return-sql-table-as-json-in-python
@@ -275,20 +256,20 @@ if __name__ == "__main__":
 
     goodlinks = Goodlinks(args.verbose)
 
-    if args.tables == 1:
+    if args.tables:
         goodlinks.print_tables()
 
-    if args.fields == 1:
+    if args.fields:
         goodlinks.print_fields('link')
         goodlinks.print_fields('state')
 
-    if args.today == 1:
+    if args.today:
         args.date = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    if args.update == 1:
-        goodlinks.update_tag('link', args.date)
+    if args.update:
+        goodlinks.update_tag(args.date)
     
-    if args.obsidian == 1:
+    if args.obsidian:
         goodlinks.append_to_obsidian(args.update, args.date)
     else:
         count = goodlinks.print_records('link', args.tag, args.date, -1)

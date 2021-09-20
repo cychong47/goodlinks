@@ -12,51 +12,57 @@ example:
     %(prog)s --date 2021-09-04
     %(prog)s --today
 """
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()  # epilog=example_text)
-    parser.add_argument("--date", "-d", action="store")
-    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
-    parser.add_argument("--no-update", action="store_const", const=1, help=f"do not update tag")
-    parser.add_argument("--dry-run", action="store_const", const=1, help=f"not udpate Obsidian Daily Notes")
+class Obsidian():
+    def __init__(self, req_date):
+        self.dn_file = f"""{os.environ["HOME"]}/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/01. Daily Notes/{req_date}.md"""
 
-    args = parser.parse_args()
+    def check_if_dn_is_exist(self):
+        if pathlib.Path(self.dn_file).is_file():
+            self.dn_note_is_exist = True
+        else: 
+            self.dn_note_is_exist = False
 
-    if args.today == 1:
-        args.date = datetime.datetime.now().strftime("%Y-%m-%d")
+        return self.dn_note_is_exist
 
-    # get today's list
-    goodlinks = goodlinks.Goodlinks()
+    def check_if_note_has_goodlinks(self):
+        """Return True if Daily Notes has a Goodlinks section"""
 
-    # update first
-    if args.no_update == None:
-        print("Update tags")
-        goodlinks.update_tag('link', args.date)
+        # if note is not eixst, just say note has links already
+        if not self.dn_note_is_exist:
+            return True
 
-    links = goodlinks.get_links('link', args.date)
+        with open(self.dn_file, 'r') as fp:
+            for line in fp.readlines():
+                if "## Goodlinks" in line:
+                    print("Daily notes has already Goodlinks section.")
+                    return True
+        
+        return False
 
-    if args.dry_run == 1:
-        print(f"{len(links)} new links on {args.date}")
-        sys.exit(0)
+    def append_to_note(self, links):
+        """Append links to Daily Notes"""
+        if not self.dn_note_is_exist:
+            return
 
-    dn_file = f"""{os.environ["HOME"]}/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/01. Daily Notes/{args.date}.md"""
-    if pathlib.Path(dn_file).is_file():
+        # Find out what LF is needed
         first_line = ''
-        with open(dn_file, 'r') as fp:
+        with open(self.dn_file, 'r') as fp:
             buf = fp.readlines()
 
             if buf[-1] != '\n':
                 first_line = "\n\n"
 
-        with open(dn_file, 'a') as fp:
+        with open(self.dn_file, 'a') as fp:
             fp.write(first_line)
             fp.write("## Goodlinks\n")
 
+            count = 0
             for link in links:
                 fp.write(f"""- [{link['title']}]({link['url']}) """)
-                tags = link.get('tags') or ""
-                for tag in tags.split():
-                    fp.write(f"#{tag}")
+                tags = link.get('tags', "")
+                if tags:
+                    for tag in tags.split():
+                            fp.write(f"#{tag}")
                 fp.write("\n")
-    else:
-        print(f"File is not exist {dn_file}")
-    # find note
+                count += 1
+            print(f"Append {count} links to Daily Notes")

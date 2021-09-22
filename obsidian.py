@@ -62,7 +62,7 @@ class Obsidian():
                 tags = link.get('tags', "")
                 if tags:
                     for tag in tags.split():
-                            fp.write(f"#{tag}")
+                        fp.write(f"#{tag} ")
                 fp.write("\n")
                 count += 1
             print(f"Append {count} links to Daily Notes")

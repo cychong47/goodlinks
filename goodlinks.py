@@ -18,7 +18,7 @@ class Goodlinks():
         if db_file == "":
             self.db_file = os.environ["HOME"]+"""/Library/Group Containers/group.com.ngocluu.goodlinks/Data/data.sqlite"""
         
-        if self.verbose == 1:
+        if self.verbose:
             print(f"DB : {self.db_file}")
 
         self.table_name = "link"
@@ -79,7 +79,7 @@ class Goodlinks():
 
     def _print_record(self, data):
         buf = ""
-        if self.verbose == 1:
+        if self.verbose:
             print("-"*120)
             print(f"{data['title']:<20}")
             print(f"{'':<2} : {data['url']:<20}")
@@ -115,11 +115,11 @@ class Goodlinks():
 
         return count
     
-    def get_links(self, table, req_date=None):
+    def get_links(self, req_date=None):
         """Return links of the given date"""
 
-        fields = self.get_fields(table)
-        values = self.get_records(table, req_date)
+        fields = self.get_fields(self.table_name)
+        values = self.get_records(self.table_name, req_date)
 
         data = []
         for _, value in enumerate(values, start=1):
@@ -197,12 +197,11 @@ class Goodlinks():
 
         return 0 if new_tags == old_tags else 1
     
-    def update_tag(self, table="", req_date=None):
+    def update_tag(self, req_date=None):
         """Update tag of records"""
-        if not table:
-            table = self.table
-        fields = self.get_fields(table)
-        values = self.get_records(table, req_date)
+
+        fields = self.get_fields(self.table_name)
+        values = self.get_records(self.table_name, req_date)
 
         count = 0
         if self.verbose:
@@ -217,14 +216,14 @@ class Goodlinks():
     def append_to_obsidian(self, update, req_date):
         """append to Obsidian Today Notes"""
         if not update:
-            self.update_tag(self.table_name, req_date)
+            self.update_tag(req_date)
 
         ob_note = obsidian.Obsidian(req_date)
         if not ob_note.check_if_dn_is_exist():
             print(f"Obisidian Daily Note on {req_date} is not exist")
 
         if not ob_note.check_if_note_has_goodlinks():
-            links = self.get_links(self.table_name)
+            links = self.get_links(req_date)
             if links:
                 ob_note.append_to_note(links)
             else:

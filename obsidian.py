@@ -14,6 +14,7 @@ example:
 """
 class Obsidian():
     def __init__(self, req_date):
+        self.req_date = req_date
         self.dn_file = f"""{os.environ["HOME"]}/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/01. Daily Notes/{req_date}.md"""
 
     def check_if_dn_is_exist(self):
@@ -34,7 +35,7 @@ class Obsidian():
         with open(self.dn_file, 'r') as fp:
             for line in fp.readlines():
                 if "## Goodlinks" in line:
-                    print("Daily notes has already Goodlinks section.")
+                    print(f"{self.req_date} : Daily Notes has already Goodlinks section.")
                     return True
         
         return False
@@ -65,4 +66,4 @@ class Obsidian():
                         fp.write(f"#{tag} ")
                 fp.write("\n")
                 count += 1
-            print(f"Append {count} links to Daily Notes")
+            print(f"{self.req_date} : Append {count} links to Daily Notes")

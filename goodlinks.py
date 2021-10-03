@@ -189,7 +189,7 @@ class Goodlinks():
                     new_tags = f"{old_tags} {tag}"
 
                 if new_tags != old_tags:
-                    print(f"Update tag : {old_tags} -> {new_tags}")
+                    print(f"Update tag) {old_tags} -> {new_tags}")
                     self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                     self.db.commit()
 
@@ -242,7 +242,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser() #epilog=example_text)
     parser.add_argument("-c", "--count", type=int, default=10)
     parser.add_argument("--date", "-d", action="store")
-    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
+#    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
+    parser.add_argument("--week", action="store_const", const=1, help=f"process for last one week")
+
     parser.add_argument("--verbose", action="store_const", const=1, help="print details of each item")
 
     parser.add_argument("--tables", action="store_const", const=1, help="print tables")
@@ -262,14 +264,27 @@ if __name__ == "__main__":
         goodlinks.print_fields('link')
         goodlinks.print_fields('state')
 
-    if args.today:
-        args.date = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    if args.update:
-        goodlinks.update_tag(args.date)
-    
-    if args.obsidian:
-        goodlinks.append_to_obsidian(args.update, args.date)
+    if args.date:
+        d = args.date.split('-')
+        base_date = datetime.datetime(int(d[0]), int(d[1]), int(d[2]))
     else:
-        count = goodlinks.print_records('link', args.tag, args.date, -1)
-        print(f"{count} on {args.date}")
+        base_date = datetime.datetime.now() #.strftime("%Y-%m-%d")
+
+    if args.week:
+        base_date = datetime.datetime.now() - datetime.timedelta(days=6)
+        date_offset_list = [x for x in range(0,7)]
+    else:
+        date_offset_list = [0]
+
+    for offset in date_offset_list:
+        t = base_date + datetime.timedelta(days=offset)
+        t_date = t.strftime("%Y-%m-%d")
+
+        if args.update:
+            goodlinks.update_tag(t_date)
+    
+        if args.obsidian:
+            goodlinks.append_to_obsidian(args.update, t_date)
+        else:
+            count = goodlinks.print_records('link', args.tag, t_date, -1)
+            print(f"{count} on {t_date}")

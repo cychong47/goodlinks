@@ -8,6 +8,7 @@ import sqlite3
 import pathlib
 import tagging
 import obsidian
+import pandas as pd
 
 class Goodlinks():
 
@@ -99,13 +100,17 @@ class Goodlinks():
                 print(f"#{tag}", end=" ")
             print()
             
-    def _print_record_simple(self, data):
+    def _print_record_simple(self, index, data):
         """rint title only without link """
-        print(f"""- {data['title']}""", end=" ")
+        print(f"""[{index:2}] {data['title']}""", end=" ")
         tags = data.get('tags') or ""
         for tag in tags.split():
             print(f"#{tag}", end=" ")
         print()
+
+        if data['status'] != 0:
+            print(data)
+            print(data['readAt'], data['status'])
 
     def print_records(self, table, reqs, args):
         fields = self.get_fields(table)
@@ -123,7 +128,7 @@ class Goodlinks():
             if args.verbose:
                 self._print_record(data)
             else:
-                self._print_record_simple(data)
+                self._print_record_simple(index, data)
 
             if reqs.count != -1 and index >= reqs.count:
                 return count
@@ -258,7 +263,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--count", type=int, default=10)
     parser.add_argument("--date", "-d", action="store")
 #    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
-    parser.add_argument("--week", action="store_const", const=1, help=f"process for last one week")
+    parser.add_argument("--days", action="store", type=int, help=f"how many days from today")
 
     parser.add_argument("--verbose", action="count", default=0, help="print details of each item")
 
@@ -285,13 +290,15 @@ if __name__ == "__main__":
     else:
         base_date = datetime.datetime.now() #.strftime("%Y-%m-%d")
 
-    if args.week:
-        base_date = datetime.datetime.now() - datetime.timedelta(days=6)
-        day_offset_list = [x for x in range(0,7)]
+    if args.days:
+        base_date = datetime.datetime.now() - datetime.timedelta(days=args.days)
+        day_offset_list = [x for x in range(0,args.days)]
     else:
         day_offset_list = [0]
 
     print("-"*os.get_terminal_size().columns)
+
+    day_count = {}
     for day_offset in day_offset_list:
         t = base_date + datetime.timedelta(days=day_offset)
         t_date = t.strftime("%Y-%m-%d")
@@ -307,7 +314,11 @@ if __name__ == "__main__":
             reqs.date = t_date
             reqs.count = -1
 
+            print(t_date)
             count = goodlinks.print_records(table='link', reqs=reqs, args=args)
-            print(f"\n{count} on {t_date}")
+            day_count[t_date] = count
             
             print("-"*os.get_terminal_size().columns)
+
+    df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count'])
+    print(df)

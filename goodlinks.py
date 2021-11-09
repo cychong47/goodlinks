@@ -81,11 +81,14 @@ class Goodlinks():
         buf = ""
         if self.verbose:
             print("-"*120)
-            print(f"{data['title']:<20}")
-            print(f"{'':<2} : {data['url']:<20}")
+            try:
+                print(f"{data['title']:<20}")
+            except:
+                print("No title")
+            print(f"  url {'':<2} : {data['url']:<20}")
 #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
             if data['tags'] != None:
-                print(f"{'':<2} : ")
+                print(f"  tag {'':<2} : ", end="")
                 for tag in data['tags'].split():
                     print(f"#{tag}", end=" ")
                 print()
@@ -95,22 +98,34 @@ class Goodlinks():
             for tag in tags.split():
                 print(f"#{tag}", end=" ")
             print()
+            
+    def _print_record_simple(self, data):
+        """rint title only without link """
+        print(f"""- {data['title']}""", end=" ")
+        tags = data.get('tags') or ""
+        for tag in tags.split():
+            print(f"#{tag}", end=" ")
+        print()
 
-    def print_records(self, table, req_tag=None, req_date=None, limit=10):
+    def print_records(self, table, reqs, args):
         fields = self.get_fields(table)
-        values = self.get_records(table, req_date)
+        values = self.get_records(table, reqs.date)
 
         count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(fields, value))
 
-            if req_tag != None:
-                if not data['tags'] or req_tag not in data['tags']:
-                    continue
             count += 1
-            self._print_record(data)
+            if reqs.tag != None:
+                if not data['tags'] or reqs.tag not in data['tags']:
+                    continue
 
-            if limit > 0 and index >= limit:
+            if args.verbose:
+                self._print_record(data)
+            else:
+                self._print_record_simple(data)
+
+            if reqs.count != -1 and index >= reqs.count:
                 return count
 
         return count
@@ -164,7 +179,7 @@ class Goodlinks():
 
         extracted_keyword, a_title = tagging.get_keyword_and_title(url)
         if extracted_keyword != []:
-            if self.verbose:
+            if self.verbose > 1:
                 print(extracted_keyword)
 
             b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
@@ -198,7 +213,7 @@ class Goodlinks():
         return 0 if new_tags == old_tags else 1
     
     def update_tag(self, req_date=None):
-        """Update tag of records"""
+        """ Update tag of records"""
 
         fields = self.get_fields(self.table_name)
         values = self.get_records(self.table_name, req_date)
@@ -220,7 +235,7 @@ class Goodlinks():
 
         ob_note = obsidian.Obsidian(req_date)
         if not ob_note.check_if_dn_is_exist():
-            print(f"Obisidian Daily Note on {req_date} is not exist")
+            print(f"{req_date} : No MD file")
 
         if not ob_note.check_if_note_has_goodlinks():
             links = self.get_links(req_date)
@@ -245,7 +260,7 @@ if __name__ == "__main__":
 #    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
     parser.add_argument("--week", action="store_const", const=1, help=f"process for last one week")
 
-    parser.add_argument("--verbose", action="store_const", const=1, help="print details of each item")
+    parser.add_argument("--verbose", action="count", default=0, help="print details of each item")
 
     parser.add_argument("--tables", action="store_const", const=1, help="print tables")
     parser.add_argument("--tag", "-t", action="store")
@@ -272,19 +287,27 @@ if __name__ == "__main__":
 
     if args.week:
         base_date = datetime.datetime.now() - datetime.timedelta(days=6)
-        date_offset_list = [x for x in range(0,7)]
+        day_offset_list = [x for x in range(0,7)]
     else:
-        date_offset_list = [0]
+        day_offset_list = [0]
 
-    for offset in date_offset_list:
-        t = base_date + datetime.timedelta(days=offset)
+    print("-"*os.get_terminal_size().columns)
+    for day_offset in day_offset_list:
+        t = base_date + datetime.timedelta(days=day_offset)
         t_date = t.strftime("%Y-%m-%d")
 
         if args.update:
             goodlinks.update_tag(t_date)
-    
+
         if args.obsidian:
             goodlinks.append_to_obsidian(args.update, t_date)
         else:
-            count = goodlinks.print_records('link', args.tag, t_date, -1)
-            print(f"{count} on {t_date}")
+            reqs = argparse.Namespace()
+            reqs.tag = args.tag
+            reqs.date = t_date
+            reqs.count = -1
+
+            count = goodlinks.print_records(table='link', reqs=reqs, args=args)
+            print(f"\n{count} on {t_date}")
+            
+            print("-"*os.get_terminal_size().columns)

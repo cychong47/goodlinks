@@ -108,19 +108,16 @@ class Goodlinks():
             print(f"#{tag}", end=" ")
         print()
 
-        if data['status'] != 0:
-            print(data)
-            print(data['readAt'], data['status'])
-
     def print_records(self, table, reqs, args):
         fields = self.get_fields(table)
         values = self.get_records(table, reqs.date)
 
-        count = 0
+        read_count = 0
+        total_count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(fields, value))
 
-            count += 1
+            total_count += 1
             if reqs.tag != None:
                 if not data['tags'] or reqs.tag not in data['tags']:
                     continue
@@ -130,10 +127,12 @@ class Goodlinks():
             else:
                 self._print_record_simple(index, data)
 
-            if reqs.count != -1 and index >= reqs.count:
-                return count
+            read_count += 1 if data['readAt'] else 0
 
-        return count
+            if reqs.count != -1 and index >= reqs.count:
+                return total_count, read_count
+
+        return total_count, read_count
     
     def get_links(self, req_date=None):
         """Return links of the given date"""
@@ -262,10 +261,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser() #epilog=example_text)
     parser.add_argument("-c", "--count", type=int, default=10)
     parser.add_argument("--date", "-d", action="store")
-#    parser.add_argument("--today", action="store_const", const=1, help=f"same to --date with today")
     parser.add_argument("--days", action="store", type=int, help=f"how many days from today")
 
-    parser.add_argument("--verbose", action="count", default=0, help="print details of each item")
+    parser.add_argument("--verbose", "-v", action="count", default=0, help="print details of each item")
 
     parser.add_argument("--tables", action="store_const", const=1, help="print tables")
     parser.add_argument("--tag", "-t", action="store")
@@ -291,15 +289,18 @@ if __name__ == "__main__":
         base_date = datetime.datetime.now() #.strftime("%Y-%m-%d")
 
     if args.days:
-        base_date = datetime.datetime.now() - datetime.timedelta(days=args.days)
+        base_date = datetime.datetime.now() - datetime.timedelta(days=args.days-1)
         day_offset_list = [x for x in range(0,args.days)]
     else:
         day_offset_list = [0]
 
     print("-"*os.get_terminal_size().columns)
 
+    print(day_offset_list)
+
     day_count = {}
     for day_offset in day_offset_list:
+        print(day_offset)
         t = base_date + datetime.timedelta(days=day_offset)
         t_date = t.strftime("%Y-%m-%d")
 
@@ -315,10 +316,10 @@ if __name__ == "__main__":
             reqs.count = -1
 
             print(t_date)
-            count = goodlinks.print_records(table='link', reqs=reqs, args=args)
-            day_count[t_date] = count
+            total_count, read_count = goodlinks.print_records(table='link', reqs=reqs, args=args)
+            day_count[t_date] = (total_count, read_count)
             
             print("-"*os.get_terminal_size().columns)
 
-    df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count'])
+    df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])
     print(df)

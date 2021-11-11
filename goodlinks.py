@@ -296,8 +296,6 @@ if __name__ == "__main__":
 
     print("-"*os.get_terminal_size().columns)
 
-    print(day_offset_list)
-
     day_count = {}
     for day_offset in day_offset_list:
         t = base_date + datetime.timedelta(days=day_offset)
@@ -307,8 +305,11 @@ if __name__ == "__main__":
             goodlinks.update_tag(t_date)
 
         if args.obsidian:
-            goodlinks.append_to_obsidian(args.update, t_date)
+            if day_offset != day_offset_list[-1:][0]:
+                goodlinks.append_to_obsidian(args.update, t_date)
         else:
+            print(t_date)
+
             reqs = argparse.Namespace()
             reqs.tag = args.tag
             reqs.date = t_date
@@ -319,5 +320,5 @@ if __name__ == "__main__":
             
             print("-"*os.get_terminal_size().columns)
 
-    df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])
-    print(df)
+            df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])
+            print(df)

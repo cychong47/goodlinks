@@ -300,7 +300,6 @@ if __name__ == "__main__":
 
     day_count = {}
     for day_offset in day_offset_list:
-        print(day_offset)
         t = base_date + datetime.timedelta(days=day_offset)
         t_date = t.strftime("%Y-%m-%d")
 
@@ -315,7 +314,6 @@ if __name__ == "__main__":
             reqs.date = t_date
             reqs.count = -1
 
-            print(t_date)
             total_count, read_count = goodlinks.print_records(table='link', reqs=reqs, args=args)
             day_count[t_date] = (total_count, read_count)
             

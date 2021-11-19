@@ -320,5 +320,6 @@ if __name__ == "__main__":
             
             print("-"*os.get_terminal_size().columns)
 
-            df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])
-            print(df)
+    if day_count:
+        df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])
+        print(df)

@@ -1,0 +1,68 @@
+tags:
+  - 'kubernetes' : 'kubernetes'
+    'kubecon' : 'kubernetes'
+    'kube' : 'kubernetes'
+    'k8s' : 'kubernetes'
+    'liveness' : 'kubernetes'
+    'kubectl' : 'kubernetes'
+    'python' : 'python'
+    'golang' : 'golang'
+    'Go' : 'golang'
+    'docker' : 'docker'
+    'twitter' : 'twitter'
+    'container' : 'container'
+    'aws' : 'aws'
+    'rust' : 'rust'
+    'cncf' : 'cncf'
+    'vim' : 'vim'
+    'msa' : 'microservice'
+    'microservice' : 'microservice'
+    'cloudnative' : 'cloud-native'
+    'cicd' : 
+      - 'cicd'
+      - 'devops'
+    'elasticsearch' : 'elasticsearch'
+    'elk' : 'elasticsearch'
+    'traefik' : 
+      - 'traefik'
+      - 'kubernetes'
+      - 'load-balancer'
+    'grafana' : 
+      - 'grafana'
+      - 'monitoring'
+    '모니터링' : 
+      - 'monitoring'
+    'helm' : 
+      - 'helm'
+      - 'kubernetes'
+    'configmap' : 
+      - 'configmap'
+      - 'helm'
+      - 'kubernetes'
+    'calico' : 
+      - 'calico'
+      - 'kubernetes'
+    'istio' :
+      - 'istio'
+      - 'kubernetes'
+      - 'service-mesh'
+    '회고' : 
+      - '회고'
+      - 'retrospective'
+    '돌아보기' : 
+      - '회고'
+      - 'retrospective'
+    '마무리' : 
+      - '회고'
+      - 'retrospective'
+    'hbr' :
+      - 'hbr'
+      - 'manager'
+    'decorator' :
+      - 'decorator'
+      - 'python'
+    'iterator' :
+      - 'iterator'
+      - 'python'
+        #    'irp' :
+        #      - '��금��융'

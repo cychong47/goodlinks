@@ -6,13 +6,15 @@ import os
 import sys
 import sqlite3
 import pathlib
+import time
 import tagging
 import obsidian
 import pandas as pd
+from mytag import MyTag as mytag
 
 class Goodlinks():
 
-    def __init__(self, verbose=0, db_file=""):
+    def __init__(self, verbose=0, tag_update=True, db_file=""):
         self.verbose = verbose
 
         self.db_file = db_file
@@ -25,6 +27,9 @@ class Goodlinks():
         self.table_name = "link"
 
         self.connect_to_db()
+
+        if tag_update:
+            self.my_tag_map = mytag.tag_map
             
     def connect_to_db(self):
         try:
@@ -78,18 +83,17 @@ class Goodlinks():
 
         return self.cursor.fetchall()
 
-    def _print_record(self, data):
+    def _print_record(self, index, data):
         buf = ""
         if self.verbose:
-            print("-"*120)
             try:
-                print(f"{data['title']:<20}")
+                print(f"""[{index:2}] {data['title']:<20}""")
             except:
                 print("No title")
-            print(f"  url {'':<2} : {data['url']:<20}")
+            print(f"     url {'':<2} : {data['url']:<20}")
 #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
             if data['tags'] != None:
-                print(f"  tag {'':<2} : ", end="")
+                print(f"     tag {'':<2} : ", end="")
                 for tag in data['tags'].split():
                     print(f"#{tag}", end=" ")
                 print()
@@ -123,7 +127,7 @@ class Goodlinks():
                     continue
 
             if args.verbose:
-                self._print_record(data)
+                self._print_record(index, data)
             else:
                 self._print_record_simple(index, data)
 
@@ -139,6 +143,7 @@ class Goodlinks():
 
         fields = self.get_fields(self.table_name)
         values = self.get_records(self.table_name, req_date)
+        print(values)
 
         data = []
         for _, value in enumerate(values, start=1):
@@ -154,13 +159,17 @@ class Goodlinks():
         title = data['title']
         old_tags = data.get('tags', "") or "" # to avoid error in "x not in old_tags"
 
+        """
         my_tag = (
-            'kubernetes', 'rust', 'cargo', 'go', 'ebpf',
+            'kubernetes', 
+            'helm', 'container', 'observability',
+            'cloudnative', 
+            'rust', 'cargo', 'go', 'ebpf',
             'python', 'fastapi', 'generator', 'iterator', 'jupyter', 'numpy', 'pandas', 'seaborn',
             'obsidian', 'note-taking', 'journaling',
-            'helm', 'container', 'observability',
             'aws'
         )
+        """
 
         if False:
             ## temporal code to replace " twitter youtube" to "youtube"
@@ -182,13 +191,20 @@ class Goodlinks():
             return old_tags
 
         extracted_keyword, a_title = tagging.get_keyword_and_title(url)
-        if extracted_keyword != []:
+        #if extracted_keyword != []:
+        if extracted_keyword:
             if self.verbose > 1:
-                print(extracted_keyword)
+                print(title)
+                print(f"\t{extracted_keyword}")
 
-            b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
-            if b != []:
-                new_tags = old_tags + ' ' + ' '.join(b)
+            #b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
+            b = [self.my_tag_map[x] for x in extracted_keyword if x in self.my_tag_map.keys() and x not in old_tags]
+            if b:
+                if self.verbose > 0 and old_tags != new_tags:
+                    print("\tOld tag", old_tags)
+                    print("\tNew tag", new_tags)
+
+                new_tags = old_tags + ' ' + ' '.join(list(set(b)))
                 self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                 self.db.commit()
 
@@ -225,6 +241,8 @@ class Goodlinks():
         count = 0
         if self.verbose:
             print(f"Process {len(values)} items on {req_date}")
+            time.sleep(1)
+
         for index, item in enumerate(values, start=1):
             data = dict(zip(fields, item))
             count += self._update_tag(data)
@@ -271,9 +289,15 @@ if __name__ == "__main__":
 
     parser.add_argument("--update", action="store_const", const=1, help="update tag")
     parser.add_argument("--obsidian", action="store_const", const=1, help="Update obsidian Daily Notes tag")
+    parser.add_argument("--list", action="store_const", const=1, help="List")
     args = parser.parse_args()
 
-    goodlinks = Goodlinks(args.verbose)
+    goodlinks = Goodlinks(args.verbose, args.update)
+
+    try:
+        screen_width = os.get_terminal_size().columns
+    except OSError:
+        screen_width = 120
 
     if args.tables:
         goodlinks.print_tables()
@@ -289,12 +313,14 @@ if __name__ == "__main__":
         base_date = datetime.datetime.now() #.strftime("%Y-%m-%d")
 
     if args.days:
-        base_date = datetime.datetime.now() - datetime.timedelta(days=args.days-1)
+        base_date = datetime.datetime.now() - datetime.timedelta(days=args.days)
         day_offset_list = [x for x in range(0,args.days)]
     else:
         day_offset_list = [0]
 
-    print("-"*os.get_terminal_size().columns)
+    print(base_date)
+    print(day_offset_list)
+    print("-"*screen_width)
 
     day_count = {}
     for day_offset in day_offset_list:
@@ -304,12 +330,13 @@ if __name__ == "__main__":
         if args.update:
             goodlinks.update_tag(t_date)
 
+        print(t_date)
+
         if args.obsidian:
             if day_offset != day_offset_list[-1:][0]:
                 goodlinks.append_to_obsidian(args.update, t_date)
-        else:
-            print(t_date)
 
+        if args.list:
             reqs = argparse.Namespace()
             reqs.tag = args.tag
             reqs.date = t_date
@@ -318,7 +345,7 @@ if __name__ == "__main__":
             total_count, read_count = goodlinks.print_records(table='link', reqs=reqs, args=args)
             day_count[t_date] = (total_count, read_count)
             
-            print("-"*os.get_terminal_size().columns)
+            print("-"*screen_width)
 
     if day_count:
         df = pd.DataFrame.from_dict(day_count, orient='index', columns=['total count', "read count"])

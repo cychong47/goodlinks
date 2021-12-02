@@ -28,6 +28,8 @@ class Goodlinks():
 
         self.connect_to_db()
 
+        self.fields = self.get_fields(self.table_name)
+
         if tag_update:
             self.my_tag_map = mytag.tag_map
             
@@ -103,7 +105,14 @@ class Goodlinks():
             for tag in tags.split():
                 print(f"#{tag}", end=" ")
             print()
-            
+
+    def _print_tag(self, data):
+       if data['tags'] != None:
+           print(f"     tag {'':<2} : ", end="")
+           for tag in data['tags'].split():
+               print(f"#{tag}", end=" ")
+           print()
+       
     def _print_record_simple(self, index, data):
         """rint title only without link """
         print(f"""[{index:2}] {data['title']}""", end=" ")
@@ -112,24 +121,38 @@ class Goodlinks():
             print(f"#{tag}", end=" ")
         print()
 
+    def _print_title(self, index, data):
+        try:
+            print(f"""[{index:2}] {data['title']:<20}""")
+        except:
+            print("No title")
+        print(f"     url {'':<2} : {data['url']:<20}")
+
     def print_records(self, table, reqs, args):
-        fields = self.get_fields(table)
         values = self.get_records(table, reqs.date)
 
         read_count = 0
         total_count = 0
         for index, value in enumerate(values, start=1):
-            data = dict(zip(fields, value))
+            data = dict(zip(self.fields, value))
 
+            if args.verbose:
+                self._print_title(index, data)
+            else:
+                self._print_record_simple(index, data)
+
+            if args.update:
+                self._update_tag(data)
+
+            if args.verbose:
+                self._print_tag(data)
             total_count += 1
             if reqs.tag != None:
                 if not data['tags'] or reqs.tag not in data['tags']:
                     continue
 
-            if args.verbose:
-                self._print_record(index, data)
-            else:
-                self._print_record_simple(index, data)
+#            if args.verbose:
+#                self._print_record(index, data)
 
             read_count += 1 if data['readAt'] else 0
 
@@ -194,8 +217,7 @@ class Goodlinks():
         #if extracted_keyword != []:
         if extracted_keyword:
             if self.verbose > 1:
-                print(title)
-                print(f"\t{extracted_keyword}")
+                print(f"     keyword : {extracted_keyword}")
 
             #b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
             b = [self.my_tag_map[x] for x in extracted_keyword if x in self.my_tag_map.keys() and x not in old_tags]
@@ -235,7 +257,6 @@ class Goodlinks():
     def update_tag(self, req_date=None):
         """ Update tag of records"""
 
-        fields = self.get_fields(self.table_name)
         values = self.get_records(self.table_name, req_date)
 
         count = 0
@@ -244,7 +265,7 @@ class Goodlinks():
             time.sleep(1)
 
         for index, item in enumerate(values, start=1):
-            data = dict(zip(fields, item))
+            data = dict(zip(self.fields, item))
             count += self._update_tag(data)
         
         if count:
@@ -327,8 +348,8 @@ if __name__ == "__main__":
         t = base_date + datetime.timedelta(days=day_offset)
         t_date = t.strftime("%Y-%m-%d")
 
-        if args.update:
-            goodlinks.update_tag(t_date)
+#        if args.update:
+#            goodlinks.update_tag(t_date)
 
         print(t_date)
 

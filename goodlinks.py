@@ -10,7 +10,10 @@ import time
 import tagging
 import obsidian
 import pandas as pd
-from mytag import MyTag as mytag
+import pprint
+import urllib.request
+from bs4 import BeautifulSoup as bf
+from mytag import MyTag
 
 class Goodlinks():
 
@@ -31,6 +34,7 @@ class Goodlinks():
         self.fields = self.get_fields(self.table_name)
 
         if tag_update:
+            mytag = MyTag()
             self.my_tag_map = mytag.tag_map
             
     def connect_to_db(self):
@@ -106,10 +110,10 @@ class Goodlinks():
                 print(f"#{tag}", end=" ")
             print()
 
-    def _print_tag(self, data):
-       if data['tags'] != None:
+    def _print_tag(self, tags):
+       if tags != None:
            print(f"     tag {'':<2} : ", end="")
-           for tag in data['tags'].split():
+           for tag in tags.split():
                print(f"#{tag}", end=" ")
            print()
        
@@ -142,10 +146,11 @@ class Goodlinks():
                 self._print_record_simple(index, data)
 
             if args.update:
-                self._update_tag(data)
+                _, tags = self._update_tag(data)
 
             if args.verbose:
-                self._print_tag(data)
+                self._print_tag(tags)
+
             total_count += 1
             if reqs.tag != None:
                 if not data['tags'] or reqs.tag not in data['tags']:
@@ -174,6 +179,19 @@ class Goodlinks():
 
         return data
 
+    def _get_youtube_keyworld(self, url):
+        # extract keywords from title or....
+        request = urllib.request.Request(url)
+        response = urllib.request.urlopen(request)
+        extracted_keyword = ["youtube"]
+        if response:
+            soup = bf(response, "lxml")
+
+            raw = soup.find("meta", {"name":"keywords"})['content']
+            extracted_keyword.extend(raw.split(', '))
+
+        return extracted_keyword
+
     def _update_tag(self, data):
         """ return 1 if tag is udpated otherwise return 0"""
 
@@ -181,78 +199,49 @@ class Goodlinks():
         url = data['url']
         title = data['title']
         old_tags = data.get('tags', "") or "" # to avoid error in "x not in old_tags"
-
-        """
-        my_tag = (
-            'kubernetes', 
-            'helm', 'container', 'observability',
-            'cloudnative', 
-            'rust', 'cargo', 'go', 'ebpf',
-            'python', 'fastapi', 'generator', 'iterator', 'jupyter', 'numpy', 'pandas', 'seaborn',
-            'obsidian', 'note-taking', 'journaling',
-            'aws'
-        )
-        """
-
-        if False:
-            ## temporal code to replace " twitter youtube" to "youtube"
-            tag_map = {"youtubekubernetes": "youtube kubernetes",
-                        "youtubeobservability": "youtube observability",
-                        "youtubeobsidian": "youtube obsidian",
-                        "youtubepython": "youtube python"}
-
-            for x in tag_map.keys():
-                if not old_tags:
-                    return None
-
-                if x in old_tags:
-                    new_tags = old_tags.replace(x, tag_map[x])
-                    self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
-                    self.db.commit()
-                    return new_tags
-
-            return old_tags
+        new_tags = old_tags
 
         extracted_keyword, a_title = tagging.get_keyword_and_title(url)
-        #if extracted_keyword != []:
+        if "youtube.com" in url:
+            extracted_keyword = self._get_youtube_keyworld(url)
+        elif "twitter.com" in url:
+            extracted_keyword = ["twitter"]
+
         if extracted_keyword:
             if self.verbose > 1:
-                print(f"     keyword : {extracted_keyword}")
+                print(f"     keyword : ", end="")
+                if len(extracted_keyword) > 5:
+                    print()
+                    pp = pprint.PrettyPrinter(width=80, compact=True, indent=15)
+                    pp.pprint(extracted_keyword)
+                    #pprint.pprint(extracted_keyword)
+                else:
+                    print(extracted_keyword)
 
-            #b = [x for x in extracted_keyword if x in my_tag and x not in old_tags]
-            b = [self.my_tag_map[x] for x in extracted_keyword if x in self.my_tag_map.keys() and x not in old_tags]
+            # list comprehension might not suitable to handle list and single entry? They need to be flattened
+            #b = [self.my_tag_map[x] for x in extracted_keyword if x in self.my_tag_map.keys() and x not in old_tags]
+            b = []
+            for x in extracted_keyword:
+                if x in self.my_tag_map.keys() and x not in old_tags:
+                    if type(self.my_tag_map[x]) is list:
+                        b.extend(self.my_tag_map[x])
+                    else:
+                        b.append(self.my_tag_map[x])
+
             if b:
-                if self.verbose > 0 and old_tags != new_tags:
-                    print("\tOld tag", old_tags)
-                    print("\tNew tag", new_tags)
+                if self.verbose > 2:
+                    print(f"b: {b}")
 
                 new_tags = old_tags + ' ' + ' '.join(list(set(b)))
+                new_tags = new_tags.strip()
+
+                if self.verbose > 1 and old_tags != new_tags:
+                    print(f"({old_tags}) -> ({new_tags})")
+
                 self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
                 self.db.commit()
 
-        # simple tag for twitter and youtube
-        target_tags = ( 
-                ["on Twitter", "twitter"], 
-                ["- YouTube", "youtube"]
-                )
-
-        new_tags = old_tags
-        for keyword, tag in target_tags:
-            title = a_title if not title else title
-            if keyword in title:
-                if not old_tags:
-                    new_tags = tag
-                elif tag not in old_tags:
-                    new_tags = f"{old_tags} {tag}"
-
-                if new_tags != old_tags:
-                    print(f"Update tag) {old_tags} -> {new_tags}")
-                    self.cursor.execute(f"""UPDATE link SET tags = "{new_tags}" WHERE id='{id}'""")
-                    self.db.commit()
-
-                return 0 if new_tags == old_tags else 1
-
-        return 0 if new_tags == old_tags else 1
+        return 0 if new_tags == old_tags else 1, new_tags
     
     def update_tag(self, req_date=None):
         """ Update tag of records"""
@@ -266,17 +255,20 @@ class Goodlinks():
 
         for index, item in enumerate(values, start=1):
             data = dict(zip(self.fields, item))
-            count += self._update_tag(data)
+            t, _ = self._update_tag(data)
+            count += t
+#            count += self._update_tag(data)
         
         if count:
             print(f"Updated record : {count}")
 
     def append_to_obsidian(self, update, req_date):
         """append to Obsidian Today Notes"""
-        if not update:
+        if update:
             self.update_tag(req_date)
 
         ob_note = obsidian.Obsidian(req_date)
+
         if not ob_note.check_if_dn_is_exist():
             print(f"{req_date} : No MD file")
 

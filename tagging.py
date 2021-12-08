@@ -26,5 +26,10 @@ def get_keyword_and_title(url):
 
     return a.keywords, a.title
 
+def get_keyword_from_text(text):
+    tokens = set(nltk.word_tokenize(text))
+    tokens = [ token.lower() for token in tokens ]
+    return tokens
+
 if __name__ == "__main__":
     get_keyword("")

@@ -95,7 +95,7 @@ class Goodlinks():
             try:
                 print(f"""[{index:2}] {data['title']:<20}""")
             except:
-                print("No title")
+                print(f"""[{index:2}] No title""")
             print(f"     url {'':<2} : {data['url']:<20}")
 #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
             if data['tags'] != None:
@@ -129,7 +129,7 @@ class Goodlinks():
         try:
             print(f"""[{index:2}] {data['title']:<20}""")
         except:
-            print("No title")
+            print(f"""[{index:2}] No title""")
         print(f"     url {'':<2} : {data['url']:<20}")
 
     def print_records(self, table, reqs, args):
@@ -171,7 +171,6 @@ class Goodlinks():
 
         fields = self.get_fields(self.table_name)
         values = self.get_records(self.table_name, req_date)
-        print(values)
 
         data = []
         for _, value in enumerate(values, start=1):
@@ -204,8 +203,10 @@ class Goodlinks():
         extracted_keyword, a_title = tagging.get_keyword_and_title(url)
         if "youtube.com" in url:
             extracted_keyword = self._get_youtube_keyworld(url)
+            extracted_keyword.extend(tagging.get_keyword_from_text(title))
         elif "twitter.com" in url:
             extracted_keyword = ["twitter"]
+            extracted_keyword.extend(tagging.get_keyword_from_text(title))
 
         if extracted_keyword:
             if self.verbose > 1:
@@ -331,8 +332,6 @@ if __name__ == "__main__":
     else:
         day_offset_list = [0]
 
-    print(base_date)
-    print(day_offset_list)
     print("-"*screen_width)
 
     day_count = {}

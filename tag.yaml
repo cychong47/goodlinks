@@ -83,3 +83,7 @@ tags:
       - 'python'
     'youtube': 'youtube'
     'twitter': 'twitter'
+    'irp': '금융'
+    '금융': '금융'
+    '주식': '금융'
+    '연금': '금융'

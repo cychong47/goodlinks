@@ -37,6 +37,7 @@ tags:
     'cicd':
       - 'cicd'
       - 'devops'
+    'devops': 'devops'
     'elasticsearch': 'elasticsearch'
     'elk': 'elasticsearch'
     'redis': 'redis'

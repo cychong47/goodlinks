@@ -140,26 +140,31 @@ class Goodlinks():
         for index, value in enumerate(values, start=1):
             data = dict(zip(self.fields, value))
 
+
+            if args.update:
+                _, tags = self._update_tag(data)
+            else:
+                tags = data["tags"] if data["tags"] else []
+
+            if reqs.tag:
+                if not data['tags'] or reqs.tag not in data['tags']:
+                    continue
+
+            # only count all conditions are met such as tag is matched
+            total_count += 1
+            read_count += 1 if data['readAt'] else 0
+
             if args.verbose:
                 self._print_title(index, data)
             else:
                 self._print_record_simple(index, data)
 
-            if args.update:
-                _, tags = self._update_tag(data)
-
             if args.verbose:
                 self._print_tag(tags)
-
-            total_count += 1
-            if reqs.tag != None:
-                if not data['tags'] or reqs.tag not in data['tags']:
-                    continue
 
 #            if args.verbose:
 #                self._print_record(index, data)
 
-            read_count += 1 if data['readAt'] else 0
 
             if reqs.count != -1 and index >= reqs.count:
                 return total_count, read_count

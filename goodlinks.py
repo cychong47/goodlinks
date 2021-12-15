@@ -119,17 +119,21 @@ class Goodlinks():
        
     def _print_record_simple(self, index, data):
         """rint title only without link """
-        print(f"""[{index:2}] {data['title']}""", end=" ")
+
+        read_flag = "R" if data['readAt'] else " "
+        print(f"""{read_flag}[{index:2}] {data['title']}""", end=" ")
+
         tags = data.get('tags') or ""
         for tag in tags.split():
             print(f"#{tag}", end=" ")
         print()
 
     def _print_title(self, index, data):
+        read_flag = "R" if data['readAt'] else " "
         try:
-            print(f"""[{index:2}] {data['title']:<20}""")
+            print(f"""{read_flag}[{index:2}] {data['title']:<20}""")
         except:
-            print(f"""[{index:2}] No title""")
+            print(f"""[{read_flag}{index:2}] No title""")
         print(f"     url {'':<2} : {data['url']:<20}")
 
     def print_records(self, table, reqs, args):
@@ -139,7 +143,6 @@ class Goodlinks():
         total_count = 0
         for index, value in enumerate(values, start=1):
             data = dict(zip(self.fields, value))
-
 
             if args.update:
                 _, tags = self._update_tag(data)

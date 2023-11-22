@@ -7,12 +7,18 @@ tags:
     'kubectl': 'kubernetes'
     'observability': 'observability'
     'python': 'python'
+    'PyTorch': 
+      - 'python'
+      - 'pytorch'
     'pandas':
       - 'pandas'
       - 'python'
     'seaborn':
       - 'seaborn'
       - 'python'
+    'operator':
+      - 'kubernetes'
+      - 'operator'
     'obsidian':
       - 'obsidian'
       - 'note-taking'
@@ -92,3 +98,14 @@ tags:
     '제텔카스텐': 
       - 'note-taking'
       - 'zettelkasten'
+    'osx': 
+      - 'osx'
+      - 'apple'
+      - 'mac'
+    'm1': 
+      - 'mac'
+    'm2': 
+      - 'mac'
+    'cka': 'cka'
+    'ckad': 'ckad'
+    'ai': 'ai'

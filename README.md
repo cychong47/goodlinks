@@ -19,3 +19,8 @@ Get daily list from goodlinks.app
   12 fetchStatus
   13 status
 ```
+
+## How to use
+```
+TAG_FILE=$PWD/tag.yaml python3 goodlinks/goodlinks.py --days 7 --update --list
+```

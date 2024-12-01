@@ -1,15 +1,19 @@
 #!/bin/env python3
 """Tagging"""
 
+import os
 import sys
+from pathlib import Path
+
 import yaml
-import pkg_resources
+#import pkg_resources
 import newspaper
 import nltk
 
 nltk.download("punkt", quiet=True)
 
-CONFIG_FILE_PATH = pkg_resources.resource_filename(__name__, "tag.yaml")
+#CONFIG_FILE_PATH = pkg_resources.resource_filename(__name__, "tag.yaml")
+CONFIG_FILE_PATH = os.environ.get("TAG_FILE", "tag.yaml")
 
 
 class Tagging:

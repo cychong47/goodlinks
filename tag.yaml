@@ -103,9 +103,27 @@ tags:
       - 'apple'
       - 'mac'
     'm1': 
-      - 'mac'
+      - 'apple/m1'
+      - 'apple/mac'
     'm2': 
-      - 'mac'
+      - 'apple/m2'
+      - 'apple/mac'
+    'm3': 
+      - 'apple/m3'
+      - 'apple/mac'
+    'm4': 
+      - 'apple/m4'
+      - 'apple/mac'
     'cka': 'cka'
     'ckad': 'ckad'
     'ai': 'ai'
+    'llm':
+      - 'llm'
+    'langchain':
+      - 'llm/langchain'
+    'langgraph':
+      - 'llm/langgraph'
+    'langindex':
+      - 'llm/langindex'
+    'perplexity':
+      - 'llm/perplexity'

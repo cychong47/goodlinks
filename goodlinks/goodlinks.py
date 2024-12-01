@@ -19,6 +19,7 @@ class Goodlinks:
     def __init__(self, verbose=0, tag_update=True, db_file=""):
         self.verbose = verbose
 
+        self.title_width = 80
         self.db_file = db_file
         if db_file == "":
             self.db_file = (
@@ -98,26 +99,39 @@ class Goodlinks:
 
         return self.cursor.fetchall()
 
-    def _print_record(self, index, data):
-        if self.verbose:
-            try:
-                print(f"""[{index:2}] {data['title']:<20}""")
-            except KeyError:
-                print(f"""[{index:2}] No title""")
-            if self.verbose > 1:
-                print(f"     url {'':<2} : {data['url']:<20}")
-            #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
-            if data["tags"]:
-                print(f"     tag {'':<2} : ", end="")
-                for tag in data["tags"].split():
-                    print(f"#{tag}", end=" ")
-                print()
-        else:
-            print(f"""- [{data['title']}]({data['url']})""", end=" ")
-            tags = data.get("tags") or ""
-            for tag in tags.split():
-                print(f"#{tag}", end=" ")
-            print()
+    def _print_record(self, index, record, tags):
+        #        if self.verbose:
+        #            try:
+        #                print(f"[{index:2}] {data['title'][:80]:<80}")
+        #            except KeyError:
+        #                print(f"[{index:2}] No title")
+        #            if self.verbose > 1:
+        #                print(f"     url {'':<2} : {data['url']:<20}")
+        #            #            print(f"{'':<2} : {time.ctime(data['addedAt'])}")
+        #            if data["tags"]:
+        #                print(f"     tag {'':<2} : ", end="")
+        #                for tag in data["tags"].split():
+        #                    print(f"#{tag}", end=" ")
+        #                print()
+        #        else:
+        #            print(f"- [{data['title'][:80]}:<80]({data['url']})", end=" ")
+        #            tags = data.get("tags") or ""
+        #            for tag in tags.split():
+        #                print(f"#{tag}", end=" ")
+        #            print()
+        self._print_title(index, record)
+        self._print_tag(index, tags)
+
+    def _get_title(self, record) -> str:
+        return self.limit_string_bytes(record.get("title", "No title"), self.title_width)
+
+    def _print_title(self, index, record):
+        read_flag = "R" if record["readAt"] else " "
+
+        print(f"[{read_flag}{index:2}] {self._get_title(record):self.title_width}")
+
+        if self.verbose > 1:
+            print(f"     url {'':<2} : {record['url']:<20}")
 
     def _print_tag(self, tags):
         if tags:
@@ -126,55 +140,43 @@ class Goodlinks:
                 print(f"#{tag}", end=" ")
             print()
 
-    def _print_record_simple(self, index, data):
+    def _print_record_simple(self, index, record):
         """rint title only without link"""
 
-        read_flag = "R" if data["readAt"] else " "
-        print(f"""{read_flag}[{index:2}] {data['title']}""", end="   ")
+        read_flag = "R" if record["readAt"] else " "
+        print(f"[{read_flag}{index:2}] {self._get_title(record):{self.title_width}}", end="  ")
 
-        tags = data.get("tags") or ""
+        tags = record.get("tags") or ""
         for tag in tags.split():
             print(f"#{tag}", end=" ")
         print()
 
-    def _print_title(self, index, data):
-        read_flag = "R" if data["readAt"] else " "
-
-        if data.get("title", "No title"):
-            print(f"""[{read_flag}{index:2}] {data['title']:<20}""")
-        else:
-            print(f"""[{read_flag}{index:2}] No title""")
-
-        if self.verbose > 1:
-            print(f"     url {'':<2} : {data['url']:<20}")
-
     def print_records(self, table, reqs, args):
-        values = self.get_records(table, reqs.date)
+        records = self.get_records(table, reqs.date)
 
         read_count = 0
         total_count = 0
-        for index, value in enumerate(values, start=1):
-            data = dict(zip(self.fields, value))
+        for index, value in enumerate(records, start=1):
+            record = dict(zip(self.fields, value))
 
-            tags = data.get("tags", [])
+            tags = record.get("tags", [])
             if args.update:
-                _, tags = self._update_tag(data)
+                _, tags = self._update_tag(record)
 
             if reqs.tag:
-                if not data["tags"] or reqs.tag not in data["tags"]:
+                if not record["tags"] or reqs.tag not in record["tags"]:
                     continue
 
             # only count all conditions are met such as tag is matched
             total_count += 1
-            read_count += 1 if data["readAt"] else 0
+            read_count += 1 if record["readAt"] else 0
 
             if args.verbose:
-                self._print_title(index, data)
+                #                self._print_title(index, record)
+                #                self._print_tag(tags)
+                self._print_record(index, record, tags)
             else:
-                self._print_record_simple(index, data)
-
-            if args.verbose:
-                self._print_tag(tags)
+                self._print_record_simple(index, record)
 
             if reqs.count != -1 and index >= reqs.count:
                 return total_count, read_count
@@ -185,13 +187,13 @@ class Goodlinks:
         """Return links of the given date"""
 
         fields = self.get_fields(self.table_name)
-        values = self.get_records(self.table_name, req_date)
+        records = self.get_records(self.table_name, req_date)
 
-        data = []
-        for _, value in enumerate(values, start=1):
-            data.append(dict(zip(fields, value)))
+        record = []
+        for _, value in enumerate(records, start=1):
+            record.append(dict(zip(fields, value)))
 
-        return data
+        return record
 
     def _get_youtube_keyworld(self, url):
         # extract keywords from title or....
@@ -210,7 +212,7 @@ class Goodlinks:
 
         return extracted_keyword
 
-    def _update_tag(self, data):
+    def _update_tag(self, record):
         """return 1 if tag is updated otherwise return 0
 
         Returns
@@ -218,10 +220,10 @@ class Goodlinks:
             new tag
         """
 
-        id = data["id"]
-        url = data["url"]
-        title = data["title"]
-        old_tags = data.get("tags", "")
+        id = record["id"]
+        url = record["url"]
+        title = record["title"]
+        old_tags = record.get("tags", "")
         new_tags = old_tags
 
         extracted_keyword, a_title = Tagging.get_keyword_and_title(url)
@@ -286,21 +288,26 @@ class Goodlinks:
     def update_tag(self, req_date=None):
         """Update tag of records"""
 
-        values = self.get_records(self.table_name, req_date)
+        records = self.get_records(self.table_name, req_date)
 
         count = 0
         if self.verbose:
-            print(f"Process {len(values)} items on {req_date}")
+            print(f"Process {len(records)} items on {req_date}")
             time.sleep(1)
 
-        for index, item in enumerate(values, start=1):
-            data = dict(zip(self.fields, item))
-            t, _ = self._update_tag(data)
+        for index, item in enumerate(records, start=1):
+            record = dict(zip(self.fields, item))
+            t, _ = self._update_tag(record)
             if t:
                 count += 1
 
         if count:
             print(f"Updated record : {count}")
+
+    def limit_string_bytes(self, input_string, max_bytes):
+        encoded = input_string.encode("utf-8")
+
+        return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
     def append_to_obsidian(self, update, req_date):
         """append to Obsidian Today Notes"""
